@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>政务决策挑战赛</title>
+  <style>
+    body {
+      font-family: "微软雅黑", sans-serif;
+      background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+      margin: 0;
+      padding: 0;
+    }
+    #container {
+      max-width: 900px;
+      margin: 30px auto;
+      background-color: #fff;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1, h2 {
+      text-align: center;
+      color: #333;
+    }
+    p {
+      line-height: 1.6;
+      margin: 10px 0;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 10px;
+      border: none;
+      border-radius: 5px;
+      background-color: #007bff;
+      color: #fff;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    select {
+      padding: 10px;
+      font-size: 16px;
+      margin: 10px;
+    }
+    .option-btn {
+      display: block;
+      width: 100%;
+      text-align: left;
+      margin: 10px 0;
+      padding: 12px;
+      background-color: #28a745;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    .option-btn:hover {
+      background-color: #218838;
+    }
+    #stageInfo {
+      font-size: 18px;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    #dashboard {
+      display: flex;
+      justify-content: space-around;
+      background: #f1f3f5;
+      padding: 10px;
+      border-radius: 5px;
+      margin-bottom: 15px;
+    }
+    #dashboard div {
+      font-size: 14px;
+    }
+    #scenario, #result {
+      margin: 15px 0;
+      padding: 15px;
+      background: #e2e6ea;
+      border-left: 6px solid #17a2b8;
+      border-radius: 5px;
+    }
+    #reportContent {
+      white-space: pre-wrap;
+      background-color: #f1f3f5;
+      padding: 15px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      max-height: 500px;
+      overflow-y: auto;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <!-- 开始界面 -->
+    <div id="startScreen">
+      <h1>政务决策挑战赛</h1>
+      <p>欢迎进入决策挑战！在这里你将扮演不同部门，面对层出不穷且充满矛盾取舍的危机。每个阶段的选择都各有利弊，既有利于提升某项指标，也带来副作用。请根据“民众满意度”、“公司支出”（越低越好）、“社会责任”和“政府满意度”这四项指标进行平衡抉择。</p>
+      <button id="startBtn">开始游戏</button>
+    </div>
+
+    <!-- 角色选择界面 -->
+    <div id="roleSelection" style="display:none;">
+      <h2>请选择你的部门角色</h2>
+      <select id="roleSelect">
+        <option value="">请选择角色</option>
+        <option value="street">街道办指挥部</option>
+        <option value="gas">燃气公司</option>
+        <option value="owners">业主委员会</option>
+        <option value="emergency">区应急管理局</option>
+      </select>
+      <br>
+      <button id="roleConfirmBtn">确认角色</button>
+    </div>
+
+    <!-- 游戏主界面 -->
+    <div id="gameScreen" style="display:none;">
+      <h2 id="roleTitle"></h2>
+      <div id="stageInfo">阶段：<span id="roundNum">1</span>/<span id="totalRounds"></span></div>
+      <div id="dashboard">
+        <div>民众满意度: <span id="publicSatisfaction">50</span></div>
+        <div>公司支出: <span id="companyExpenditure">0</span></div>
+        <div>社会责任: <span id="companySocialResponsibility">50</span></div>
+        <div>政府满意度: <span id="governmentSatisfaction">50</span></div>
+      </div>
+      <div id="scenario"></div>
+      <div id="options"></div>
+      <div id="result"></div>
+      <button id="nextRoundBtn" style="display:none;">下一阶段</button>
+    </div>
+
+    <!-- 游戏报告界面 -->
+    <div id="reportScreen" style="display:none;">
+      <h2>游戏报告</h2>
+      <div id="reportContent"></div>
+      <br>
+      <button id="restartBtn">重新开始游戏</button>
+    </div>
+  </div>
+
+  <script>
+    /**********************************
+     * 数据定义与初始状态
+     **********************************/
+    let currentRole = "";
+    let currentRound = 0;
+    let currentGameData = [];
+    let decisionLog = [];
+    
+    // 四项指标，初始值均为50（公司支出初始为0，数值越低越好）
+    let metrics = {
+      publicSatisfaction: 50,
+      companyExpenditure: 0,
+      companySocialResponsibility: 50,
+      governmentSatisfaction: 50
+    };
+
+    // 针对不同部门设计模棱两可的阶段题目，每个选项各有优缺点
+    const gameDataByRole = {
+      street: [
+        {
+          scenario: "【阶段1】初步应对：居民报告疑似燃气泄漏，恐慌情绪蔓延。你该如何行动？",
+          options: [
+            { text: "立刻调派专业队伍实地核查，会引发高成本支出", 
+              effects: { publicSatisfaction: +4, companyExpenditure: +8, companySocialResponsibility: +2, governmentSatisfaction: +3 } },
+            { text: "发布简短公告安抚情绪，但信息含糊，群众中会传谣", 
+              effects: { publicSatisfaction: +2, companyExpenditure: +2, companySocialResponsibility: +0, governmentSatisfaction: +2 } },
+            { text: "等待更多情报再做决策，风险与拖延并存，但能做出最佳决策", 
+              effects: { publicSatisfaction: -3, companyExpenditure: -2, companySocialResponsibility: +1, governmentSatisfaction: -2 } }
+          ]
+        },
+        {
+          scenario: "【阶段2】媒体介入：舆论开始质疑政府反应速度，各方矛盾逐渐激化。",
+          options: [
+            { text: "召开紧急社区会议，主动沟通风险，但引发内部纷争", 
+              effects: { publicSatisfaction: +3, companyExpenditure: +3, companySocialResponsibility: +2, governmentSatisfaction: +1 } },
+            { text: "通过官方平台发布权威解释，但信息过于官方化，群众不买单", 
+              effects: { publicSatisfaction: +1, companyExpenditure: +1, companySocialResponsibility: +1, governmentSatisfaction: +3 } },
+            { text: "保持低调，转移焦点，信任进一步下滑", 
+              effects: { publicSatisfaction: -4, companyExpenditure: 0, companySocialResponsibility: +0, governmentSatisfaction: -3 } }
+          ]
+        },
+        {
+          scenario: "【阶段3】内部资源紧缺：需在有限预算下协调各方救援力量。",
+          options: [
+            { text: "集中调配优质资源，虽费用偏高，但效果明显", 
+              effects: { publicSatisfaction: +4, companyExpenditure: +7, companySocialResponsibility: +3, governmentSatisfaction: +4 } },
+            { text: "优化现有资源分配，降低成本但效果平平", 
+              effects: { publicSatisfaction: +2, companyExpenditure: +2, companySocialResponsibility: +1, governmentSatisfaction: +2 } },
+            { text: "采取保守策略，错失最佳时机", 
+              effects: { publicSatisfaction: -2, companyExpenditure: -1, companySocialResponsibility: +0, governmentSatisfaction: -2 } }
+          ]
+        },
+        {
+          scenario: "【阶段4】舆情风暴：网络上出现不同声音，居民意见分化严重。",
+          options: [
+            { text: "组织专家解读，公开说明细节，但部分数据尚未核实，群众无法满意", 
+              effects: { publicSatisfaction: +3, companyExpenditure: +2, companySocialResponsibility: +2, governmentSatisfaction: +3 } },
+            { text: "简单回应，保持沉默以降低争议，但失去主动权", 
+              effects: { publicSatisfaction: -1, companyExpenditure: 0, companySocialResponsibility: -1, governmentSatisfaction: -1 } },
+            { text: "推迟回应，等待情况稳定，引发更大不满", 
+              effects: { publicSatisfaction: -4, companyExpenditure: -2, companySocialResponsibility: +1, governmentSatisfaction: -3 } }
+          ]
+        },
+        {
+          scenario: "【阶段5】危机尾声：事故初步平息，但居民要求彻查责任、改善措施。",
+          options: [
+            { text: "公开内部调查结果，争取民意支持，但暴露短板，群众在网络上激情批评", 
+              effects: { publicSatisfaction: +3, companyExpenditure: +3, companySocialResponsibility: +3, governmentSatisfaction: +2 } },
+            { text: "进行局部整改，保持现状，风险遗留到未来", 
+              effects: { publicSatisfaction: +1, companyExpenditure: +1, companySocialResponsibility: +1, governmentSatisfaction: +1 } },
+            { text: "选择低调处理，避免深挖责任，但信任度大跌", 
+              effects: { publicSatisfaction: -5, companyExpenditure: -1, companySocialResponsibility: -2, governmentSatisfaction: -4 } }
+          ]
+        }
+      ],
+      gas: [
+        {
+          scenario: "【阶段1】设备预警：检测仪器发现管线疑似异常，存在潜在风险。",
+          options: [
+            { text: "立即停气检修，确保安全，但成本大幅上升", 
+              effects: { publicSatisfaction: +3, companyExpenditure: +8, companySocialResponsibility: +4, governmentSatisfaction: +3 } },
+            { text: "局部试修，降低费用风险，但存在漏查风险", 
+              effects: { publicSatisfaction: +1, companyExpenditure: +3, companySocialResponsibility: +1, governmentSatisfaction: +1 } },
+            { text: "继续运行，等待更详细数据再做研判", 
+              effects: { publicSatisfaction: -4, companyExpenditure: -2, companySocialResponsibility: -3, governmentSatisfaction: -3 } }
+          ]
+        },
+        {
+          scenario: "【阶段2】公众质疑：事故曝光后，社会各界纷纷要求公司担责。",
+          options: [
+            { text: "公开说明情况并承诺后续改进，但信息披露不全", 
+              effects: { publicSatisfaction: +3, companyExpenditure: +4, companySocialResponsibility: +5, governmentSatisfaction: +2 } },
+            { text: "低调处理，减少直接对抗，但公众不满升级", 
+              effects: { publicSatisfaction: -2, companyExpenditure: 0, companySocialResponsibility: -1, governmentSatisfaction: -1 } },
+            { text: "坚称技术无误，拒绝赔偿，形象受损", 
+              effects: { publicSatisfaction: -5, companyExpenditure: -3, companySocialResponsibility: -4, governmentSatisfaction: -4 } }
+          ]
+        },
+        {
+          scenario: "【阶段3】赔偿争议：面对高额赔偿要求，公司内部陷入两难。",
+          options: [
+            { text: "全面赔付，树立责任感，但公司开支暴增", 
+              effects: { publicSatisfaction: +4, companyExpenditure: +10, companySocialResponsibility: +6, governmentSatisfaction: +3 } },
+            { text: "部分赔偿，分摊风险，但引发舆论不公", 
+              effects: { publicSatisfaction: +1, companyExpenditure: +4, companySocialResponsibility: +2, governmentSatisfaction: +1 } },
+            { text: "拒绝赔偿，强调合同条款，但公众强烈不满", 
+              effects: { publicSatisfaction: -6, companyExpenditure: -2, companySocialResponsibility: -5, governmentSatisfaction: -5 } }
+          ]
+        },
+        {
+          scenario: "【阶段4】内部泄密：部分员工擅自外泄事故信息，局势复杂。",
+          options: [
+            { text: "严查内部，公开整顿，但影响团队士气", 
+              effects: { publicSatisfaction: +2, companyExpenditure: +3, companySocialResponsibility: +3, governmentSatisfaction: +2 } },
+            { text: "低调处理，保护员工隐私，但损害透明度", 
+              effects: { publicSatisfaction: -1, companyExpenditure: 0, companySocialResponsibility: +1, governmentSatisfaction: -1 } },
+            { text: "选择忽视，暂时平息风波，但长期形象受损", 
+              effects: { publicSatisfaction: -4, companyExpenditure: -2, companySocialResponsibility: -3, governmentSatisfaction: -3 } }
+          ]
+        },
+        {
+          scenario: "【阶段5】外部干预：监管部门施压要求整改，舆论分歧明显。",
+          options: [
+            { text: "积极配合整改，争取转危为机，但整改成本高昂", 
+              effects: { publicSatisfaction: +3, companyExpenditure: +6, companySocialResponsibility: +5, governmentSatisfaction: +4 } },
+            { text: "拖延整改，先稳住局面，但风险隐患累积", 
+              effects: { publicSatisfaction: -2, companyExpenditure: +1, companySocialResponsibility: -1, governmentSatisfaction: -2 } },
+            { text: "公开质疑要求，挑战权威，但形象存在两面性", 
+              effects: { publicSatisfaction: +1, companyExpenditure: -1, companySocialResponsibility: +0, governmentSatisfaction: -3 } }
+          ]
+        },
+        {
+          scenario: "【阶段6】事故收尾：危机平息后，公司面临形象修复与财务压力双重考验。",
+          options: [
+            { text: "制定长远战略，提升技术与社会责任，但短期内支出增加", 
+              effects: { publicSatisfaction: +4, companyExpenditure: +5, companySocialResponsibility: +6, governmentSatisfaction: +4 } },
+            { text: "仅做表面改善，控制开支，但难以重建信任", 
+              effects: { publicSatisfaction: +1, companyExpenditure: +1, companySocialResponsibility: +1, governmentSatisfaction: +1 } },
+            { text: "选择低调收场，规避风险，但口碑受损明显", 
+              effects: { publicSatisfaction: -5, companyExpenditure: -2, companySocialResponsibility: -4, governmentSatisfaction: -4 } }
+          ]
+        }
+      ],
+      owners: [
+        {
+          scenario: "【阶段1】物业隐患：居民反映小区设施存在安全隐患，情绪复杂。",
+          options: [
+            { text: "立即召开业主大会讨论，但引发更大争议", 
+              effects: { publicSatisfaction: +3, companyExpenditure: +4, companySocialResponsibility: +2, governmentSatisfaction: +2 } },
+            { text: "委托第三方检测，确保客观但费用不低", 
+              effects: { publicSatisfaction: +2, companyExpenditure: +6, companySocialResponsibility: +3, governmentSatisfaction: +1 } },
+            { text: "暂不处理，等待更多信息，但易造成误解", 
+              effects: { publicSatisfaction: -3, companyExpenditure: -2, companySocialResponsibility: -1, governmentSatisfaction: -2 } }
+          ]
+        },
+        {
+          scenario: "【阶段2】赔偿争议：居民要求开发商和物业共同承担赔偿责任。",
+          options: [
+            { text: "联合各方协商，达成平衡方案，但过程复杂", 
+              effects: { publicSatisfaction: +3, companyExpenditure: +3, companySocialResponsibility: +2, governmentSatisfaction: +3 } },
+            { text: "依靠法律途径解决，公平但耗时耗力", 
+              effects: { publicSatisfaction: +1, companyExpenditure: +1, companySocialResponsibility: +1, governmentSatisfaction: +2 } },
+            { text: "选择先行赔付，缓解矛盾但加重开支负担", 
+              effects: { publicSatisfaction: +2, companyExpenditure: +5, companySocialResponsibility: +1, governmentSatisfaction: +1 } }
+          ]
+        },
+        {
+          scenario: "【阶段3】维修纠纷：维修质量引起居民不满，矛盾升级。",
+          options: [
+            { text: "更换维修团队，确保质量但拖延工期", 
+              effects: { publicSatisfaction: +3, companyExpenditure: +4, companySocialResponsibility: +3, governmentSatisfaction: +2 } },
+            { text: "延长维修周期，稳妥处理但引发二次投诉", 
+              effects: { publicSatisfaction: +1, companyExpenditure: +2, companySocialResponsibility: +1, governmentSatisfaction: +1 } },
+            { text: "坚持原方案，迅速结束纠纷但质量难保", 
+              effects: { publicSatisfaction: -2, companyExpenditure: -1, companySocialResponsibility: -2, governmentSatisfaction: -1 } }
+          ]
+        },
+        {
+          scenario: "【阶段4】信息公开：居民要求明确事故原因和责任分担。",
+          options: [
+            { text: "组织公开会议，邀请专家解读，但信息零散", 
+              effects: { publicSatisfaction: +2, companyExpenditure: +2, companySocialResponsibility: +3, governmentSatisfaction: +3 } },
+            { text: "发布简短公告，降低争议但失去透明度", 
+              effects: { publicSatisfaction: +0, companyExpenditure: 0, companySocialResponsibility: +0, governmentSatisfaction: +1 } },
+            { text: "回避问题，等待事态平息，但居民疑虑加深", 
+              effects: { publicSatisfaction: -3, companyExpenditure: -1, companySocialResponsibility: -2, governmentSatisfaction: -3 } }
+          ]
+        },
+        {
+          scenario: "【阶段5】维权抗议：部分居民组织集会抗议，要求严查责任。",
+          options: [
+            { text: "主动协调调解，安抚居民但效果有限", 
+              effects: { publicSatisfaction: +2, companyExpenditure: +2, companySocialResponsibility: +2, governmentSatisfaction: +2 } },
+            { text: "强硬回击，维护部门形象但引起群体对立", 
+              effects: { publicSatisfaction: -2, companyExpenditure: -1, companySocialResponsibility: -2, governmentSatisfaction: -2 } },
+            { text: "选择暂缓处理，观望事态变化，但风险难控", 
+              effects: { publicSatisfaction: -1, companyExpenditure: 0, companySocialResponsibility: -1, governmentSatisfaction: -1 } }
+          ]
+        },
+        {
+          scenario: "【阶段6】长远规划：事故过后居民期待未来改进，但各方利益难调和。",
+          options: [
+            { text: "制定长远发展方案，平衡各方利益，但改革力度受限", 
+              effects: { publicSatisfaction: +3, companyExpenditure: +3, companySocialResponsibility: +4, governmentSatisfaction: +3 } },
+            { text: "仅作表面整改，控制开支但难以真正解决问题", 
+              effects: { publicSatisfaction: +1, companyExpenditure: +1, companySocialResponsibility: +1, governmentSatisfaction: +1 } },
+            { text: "推卸责任，维持现状，但将来风险重重", 
+              effects: { publicSatisfaction: -4, companyExpenditure: -2, companySocialResponsibility: -3, governmentSatisfaction: -4 } }
+          ]
+        }
+      ],
+      emergency: [
+        {
+          scenario: "【阶段1】突发事件：多方报告紧急情况，事态扑朔迷离。",
+          options: [
+            { text: "立即启动应急预案，组织跨部门联动，但指令不够精准", 
+              effects: { publicSatisfaction: +3, companyExpenditure: +2, companySocialResponsibility: +1, governmentSatisfaction: +4 } },
+            { text: "进行初步调查，收集情报再决策，但耽误最佳反应时机", 
+              effects: { publicSatisfaction: +1, companyExpenditure: 0, companySocialResponsibility: +0, governmentSatisfaction: +2 } },
+            { text: "暂时搁置，由下级部门先行处理，但指挥权受到质疑", 
+              effects: { publicSatisfaction: -3, companyExpenditure: -1, companySocialResponsibility: -1, governmentSatisfaction: -3 } }
+          ]
+        },
+        {
+          scenario: "【阶段2】资源调配：应急资源紧缺，各部门争相分配。",
+          options: [
+            { text: "优先保障关键区域，集中优势，但部分区域被冷落", 
+              effects: { publicSatisfaction: +3, companyExpenditure: +2, companySocialResponsibility: +1, governmentSatisfaction: +3 } },
+            { text: "采取均衡分配，兼顾各方利益，但效果平庸", 
+              effects: { publicSatisfaction: +1, companyExpenditure: +0, companySocialResponsibility: +0, governmentSatisfaction: +1 } },
+            { text: "部分区域先行支援，缓解局部危机，但整体资源紧张", 
+              effects: { publicSatisfaction: -2, companyExpenditure: -1, companySocialResponsibility: -1, governmentSatisfaction: -2 } }
+          ]
+        },
+        {
+          scenario: "【阶段3】信息公开：公众急需了解权威信息，社会情绪复杂。",
+          options: [
+            { text: "召开新闻发布会，详尽说明措施，但信息过多易引混乱", 
+              effects: { publicSatisfaction: +3, companyExpenditure: +1, companySocialResponsibility: +2, governmentSatisfaction: +3 } },
+            { text: "发布简短公告，信息简洁但透明度不足", 
+              effects: { publicSatisfaction: +1, companyExpenditure: 0, companySocialResponsibility: +0, governmentSatisfaction: +1 } },
+            { text: "保持沉默，等待事态自行平息，但易引发谣言", 
+              effects: { publicSatisfaction: -3, companyExpenditure: -1, companySocialResponsibility: -1, governmentSatisfaction: -3 } }
+          ]
+        },
+        {
+          scenario: "【阶段4】跨部门协调：各方意见不一，协调难度加大。",
+          options: [
+            { text: "组织联合协调会，力求共识，但各方利益难平衡", 
+              effects: { publicSatisfaction: +2, companyExpenditure: +2, companySocialResponsibility: +1, governmentSatisfaction: +3 } },
+            { text: "下达统一指令，快速决策但忽视细节", 
+              effects: { publicSatisfaction: +1, companyExpenditure: +1, companySocialResponsibility: +0, governmentSatisfaction: +2 } },
+            { text: "各自为政，等待局部稳定但整体混乱加剧", 
+              effects: { publicSatisfaction: -3, companyExpenditure: -1, companySocialResponsibility: -1, governmentSatisfaction: -2 } }
+          ]
+        },
+        {
+          scenario: "【阶段5】危机升级：突发事件使局面迅速恶化，公众情绪极端。",
+          options: [
+            { text: "全面调动资源，全力应对，但使局部过度投入", 
+              effects: { publicSatisfaction: +3, companyExpenditure: +3, companySocialResponsibility: +2, governmentSatisfaction: +3 } },
+            { text: "分步实施响应，逐步缓解，但拖延效果不明显", 
+              effects: { publicSatisfaction: +1, companyExpenditure: +1, companySocialResponsibility: +1, governmentSatisfaction: +1 } },
+            { text: "采取保守策略，观望形势但信心受损", 
+              effects: { publicSatisfaction: -4, companyExpenditure: -1, companySocialResponsibility: -1, governmentSatisfaction: -3 } }
+          ]
+        },
+        {
+          scenario: "【阶段6】事后评估：危机缓解后，公众和各方期待经验总结与改进。",
+          options: [
+            { text: "组织全面评估，制定长远改进计划，但过程过于冗长", 
+              effects: { publicSatisfaction: +3, companyExpenditure: +2, companySocialResponsibility: +3, governmentSatisfaction: +4 } },
+            { text: "简要总结，快速收场但难以恢复信心", 
+              effects: { publicSatisfaction: +1, companyExpenditure: +0, companySocialResponsibility: +1, governmentSatisfaction: +1 } },
+            { text: "将责任推诿，规避深层问题但形象大跌", 
+              effects: { publicSatisfaction: -4, companyExpenditure: -1, companySocialResponsibility: -3, governmentSatisfaction: -4 } }
+          ]
+        }
+      ]
+    };
+
+    // 随机事件生成器，对所有指标均有一定干扰
+    function generateRandomEvent() {
+      const events = [
+        { description: "突发国际局势波动，影响民心", effects: { publicSatisfaction: -3, companyExpenditure: 0, companySocialResponsibility: 0, governmentSatisfaction: -2 } },
+        { description: "专家发表中肯意见，缓解局势", effects: { publicSatisfaction: +3, companyExpenditure: 0, companySocialResponsibility: +2, governmentSatisfaction: +3 } },
+        { description: "内部消息泄露，外界解读不一", effects: { publicSatisfaction: -4, companyExpenditure: 0, companySocialResponsibility: -3, governmentSatisfaction: -3 } },
+        { description: "资金意外增加，部分压力得到缓解", effects: { publicSatisfaction: +2, companyExpenditure: -3, companySocialResponsibility: +2, governmentSatisfaction: +2 } },
+        { description: "恶劣天气影响，现场应急效率下降", effects: { publicSatisfaction: -2, companyExpenditure: +2, companySocialResponsibility: 0, governmentSatisfaction: -2 } },
+        { description: "社会各界发声支持，形象略有提升", effects: { publicSatisfaction: +4, companyExpenditure: 0, companySocialResponsibility: +3, governmentSatisfaction: +4 } }
+      ];
+      return events[Math.floor(Math.random() * events.length)];
+    }
+
+    // 根据角色代码返回名称
+    function getRoleName(roleCode) {
+      switch(roleCode) {
+        case "street": return "街道办指挥部";
+        case "gas": return "燃气公司";
+        case "owners": return "业主委员会";
+        case "emergency": return "区应急管理局";
+        default: return "";
+      }
+    }
+
+    // 更新仪表盘显示
+    function updateDashboard() {
+      document.getElementById("publicSatisfaction").textContent = metrics.publicSatisfaction;
+      document.getElementById("companyExpenditure").textContent = metrics.companyExpenditure;
+      document.getElementById("companySocialResponsibility").textContent = metrics.companySocialResponsibility;
+      document.getElementById("governmentSatisfaction").textContent = metrics.governmentSatisfaction;
+    }
+
+    // 更新阶段信息显示
+    function updateStageInfo() {
+      document.getElementById("roundNum").textContent = currentRound + 1;
+      document.getElementById("totalRounds").textContent = currentGameData.length;
+    }
+
+    /**********************************
+     * 游戏流程控制
+     **********************************/
+    // 显示当前阶段情景和选项
+    function displayScenario() {
+      updateDashboard();
+      updateStageInfo();
+      const scenarioDiv = document.getElementById("scenario");
+      const optionsDiv = document.getElementById("options");
+      scenarioDiv.innerHTML = "<p>" + currentGameData[currentRound].scenario + "</p>";
+      optionsDiv.innerHTML = "";
+      currentGameData[currentRound].options.forEach((option) => {
+        const btn = document.createElement("button");
+        btn.className = "option-btn";
+        btn.textContent = option.text;
+        btn.onclick = function() { processDecision(option); };
+        optionsDiv.appendChild(btn);
+      });
+      // 清空上阶段结果展示
+      document.getElementById("result").innerHTML = "";
+    }
+
+    // 处理玩家决策：计算选项效果+随机事件效果，并更新各项指标
+    function processDecision(option) {
+      // 禁用当前所有选项
+      document.querySelectorAll("#options .option-btn").forEach(btn => btn.disabled = true);
+      
+      // 随机事件
+      const randomEvent = generateRandomEvent();
+      
+      // 计算本阶段总效果：选项效果与随机事件效果叠加
+      const totalEffects = {
+        publicSatisfaction: option.effects.publicSatisfaction + randomEvent.effects.publicSatisfaction,
+        companyExpenditure: option.effects.companyExpenditure + randomEvent.effects.companyExpenditure,
+        companySocialResponsibility: option.effects.companySocialResponsibility + randomEvent.effects.companySocialResponsibility,
+        governmentSatisfaction: option.effects.governmentSatisfaction + randomEvent.effects.governmentSatisfaction
+      };
+
+      // 更新指标（保证满意度、社会责任、政府满意度 介于0～100；公司支出不低于0）
+      metrics.publicSatisfaction = Math.max(0, Math.min(100, metrics.publicSatisfaction + totalEffects.publicSatisfaction));
+      metrics.companyExpenditure = Math.max(0, metrics.companyExpenditure + totalEffects.companyExpenditure);
+      metrics.companySocialResponsibility = Math.max(0, Math.min(100, metrics.companySocialResponsibility + totalEffects.companySocialResponsibility));
+      metrics.governmentSatisfaction = Math.max(0, Math.min(100, metrics.governmentSatisfaction + totalEffects.governmentSatisfaction));
+
+      // 保存本阶段决策记录
+      decisionLog.push({
+        round: currentRound + 1,
+        scenario: currentGameData[currentRound].scenario,
+        decision: option.text,
+        decisionEffects: option.effects,
+        randomEvent: randomEvent.description,
+        randomEffects: randomEvent.effects,
+        totalEffects: totalEffects,
+        metricsAfter: { ...metrics }
+      });
+
+      // 显示本阶段决策结果
+      const resultDiv = document.getElementById("result");
+      resultDiv.innerHTML = 
+        "<p>你选择了：<strong>" + option.text + "</strong></p>" +
+        "<p>选项效果：民众满意度(" + (option.effects.publicSatisfaction >= 0 ? "+" : "") + option.effects.publicSatisfaction +
+          ")，公司支出(" + (option.effects.companyExpenditure >= 0 ? "+" : "") + option.effects.companyExpenditure +
+          ")，社会责任(" + (option.effects.companySocialResponsibility >= 0 ? "+" : "") + option.effects.companySocialResponsibility +
+          ")，政府满意度(" + (option.effects.governmentSatisfaction >= 0 ? "+" : "") + option.effects.governmentSatisfaction + ")</p>" +
+        "<p>随机事件：<em>" + randomEvent.description + "</em>，影响：民众满意度(" + (randomEvent.effects.publicSatisfaction >= 0 ? "+" : "") + randomEvent.effects.publicSatisfaction +
+          ")，公司支出(" + (randomEvent.effects.companyExpenditure >= 0 ? "+" : "") + randomEvent.effects.companyExpenditure +
+          ")，社会责任(" + (randomEvent.effects.companySocialResponsibility >= 0 ? "+" : "") + randomEvent.effects.companySocialResponsibility +
+          ")，政府满意度(" + (randomEvent.effects.governmentSatisfaction >= 0 ? "+" : "") + randomEvent.effects.governmentSatisfaction + ")</p>" +
+        "<p>本阶段综合效果：民众满意度(" + (totalEffects.publicSatisfaction >= 0 ? "+" : "") + totalEffects.publicSatisfaction +
+          ")，公司支出(" + (totalEffects.companyExpenditure >= 0 ? "+" : "") + totalEffects.companyExpenditure +
+          ")，社会责任(" + (totalEffects.companySocialResponsibility >= 0 ? "+" : "") + totalEffects.companySocialResponsibility +
+          ")，政府满意度(" + (totalEffects.governmentSatisfaction >= 0 ? "+" : "") + totalEffects.governmentSatisfaction + ")</p>" +
+        "<p>更新后指标：民众满意度(" + metrics.publicSatisfaction +
+          ")，公司支出(" + metrics.companyExpenditure +
+          ")，社会责任(" + metrics.companySocialResponsibility +
+          ")，政府满意度(" + metrics.governmentSatisfaction + ")</p>";
+
+      updateDashboard();
+      // 显示“下一阶段”按钮
+      document.getElementById("nextRoundBtn").style.display = "inline-block";
+      currentRound++;
+    }
+
+    // 进入下一阶段或结束游戏
+    function nextRound() {
+      document.getElementById("result").innerHTML = "";
+      document.getElementById("nextRoundBtn").style.display = "none";
+      if (currentRound < currentGameData.length) {
+        displayScenario();
+      } else {
+        generateReport();
+      }
+    }
+
+    // 生成游戏报告
+    function generateReport() {
+      document.getElementById("gameScreen").style.display = "none";
+      document.getElementById("reportScreen").style.display = "block";
+      let reportText = "【政务决策挑战赛报告】\n\n";
+      reportText += "部门角色：" + getRoleName(currentRole) + "\n";
+      reportText += "最终指标：\n";
+      reportText += "  民众满意度：" + metrics.publicSatisfaction + "\n";
+      reportText += "  公司支出：" + metrics.companyExpenditure + "\n";
+      reportText += "  社会责任：" + metrics.companySocialResponsibility + "\n";
+      reportText += "  政府满意度：" + metrics.governmentSatisfaction + "\n\n";
+      decisionLog.forEach(entry => {
+        reportText += "【阶段" + entry.round + "】\n";
+        reportText += "情景：" + entry.scenario + "\n";
+        reportText += "决策：" + entry.decision + "\n";
+        reportText += "选项效果：民众满意度(" + (entry.decisionEffects.publicSatisfaction >= 0 ? "+" : "") + entry.decisionEffects.publicSatisfaction +
+                      ")，公司支出(" + (entry.decisionEffects.companyExpenditure >= 0 ? "+" : "") + entry.decisionEffects.companyExpenditure +
+                      ")，社会责任(" + (entry.decisionEffects.companySocialResponsibility >= 0 ? "+" : "") + entry.decisionEffects.companySocialResponsibility +
+                      ")，政府满意度(" + (entry.decisionEffects.governmentSatisfaction >= 0 ? "+" : "") + entry.decisionEffects.governmentSatisfaction + ")\n";
+        reportText += "随机事件：" + entry.randomEvent + "，影响：民众满意度(" + (entry.randomEffects.publicSatisfaction >= 0 ? "+" : "") + entry.randomEffects.publicSatisfaction +
+                      ")，公司支出(" + (entry.randomEffects.companyExpenditure >= 0 ? "+" : "") + entry.randomEffects.companyExpenditure +
+                      ")，社会责任(" + (entry.randomEffects.companySocialResponsibility >= 0 ? "+" : "") + entry.randomEffects.companySocialResponsibility +
+                      ")，政府满意度(" + (entry.randomEffects.governmentSatisfaction >= 0 ? "+" : "") + entry.randomEffects.governmentSatisfaction + ")\n";
+        reportText += "本阶段综合效果：民众满意度(" + (entry.totalEffects.publicSatisfaction >= 0 ? "+" : "") + entry.totalEffects.publicSatisfaction +
+                      ")，公司支出(" + (entry.totalEffects.companyExpenditure >= 0 ? "+" : "") + entry.totalEffects.companyExpenditure +
+                      ")，社会责任(" + (entry.totalEffects.companySocialResponsibility >= 0 ? "+" : "") + entry.totalEffects.companySocialResponsibility +
+                      ")，政府满意度(" + (entry.totalEffects.governmentSatisfaction >= 0 ? "+" : "") + entry.totalEffects.governmentSatisfaction + ")\n";
+        reportText += "阶段后指标：民众满意度(" + entry.metricsAfter.publicSatisfaction +
+                      ")，公司支出(" + entry.metricsAfter.companyExpenditure +
+                      ")，社会责任(" + entry.metricsAfter.companySocialResponsibility +
+                      ")，政府满意度(" + entry.metricsAfter.governmentSatisfaction + ")\n\n";
+      });
+      // 综合评价（注意公司支出越低越好）
+      let overallScore = (metrics.publicSatisfaction + metrics.governmentSatisfaction + metrics.companySocialResponsibility) / 3 - (metrics.companyExpenditure / 5);
+      reportText += "【综合评价】：\n";
+      if (overallScore >= 80) {
+        reportText += "卓越：你的决策权衡得当，各项指标均取得平衡！";
+      } else if (overallScore >= 60) {
+        reportText += "优秀：整体表现不错，但权衡取舍上仍有提升空间。";
+      } else if (overallScore >= 40) {
+        reportText += "良好：虽有亮点，但决策过程中存在较多矛盾冲突。";
+      } else {
+        reportText += "不佳：决策失误明显，各项指标未能达到理想状态，需总结经验并调整策略。";
+      }
+      document.getElementById("reportContent").textContent = reportText;
+    }
+
+    /**********************************
+     * 事件绑定与初始化
+     **********************************/
+    document.getElementById("startBtn").addEventListener("click", function() {
+      document.getElementById("startScreen").style.display = "none";
+      document.getElementById("roleSelection").style.display = "block";
+    });
+
+    document.getElementById("roleConfirmBtn").addEventListener("click", function() {
+      const role = document.getElementById("roleSelect").value;
+      if (!role) {
+        alert("请选择一个角色！");
+        return;
+      }
+      currentRole = role;
+      currentGameData = gameDataByRole[role];
+      // 重置状态
+      currentRound = 0;
+      decisionLog = [];
+      metrics = { publicSatisfaction: 50, companyExpenditure: 0, companySocialResponsibility: 50, governmentSatisfaction: 50 };
+      updateDashboard();
+      document.getElementById("roleSelection").style.display = "none";
+      document.getElementById("gameScreen").style.display = "block";
+      document.getElementById("roleTitle").textContent = "当前角色：" + getRoleName(role);
+      displayScenario();
+    });
+
+    document.getElementById("nextRoundBtn").addEventListener("click", nextRound);
+
+    document.getElementById("restartBtn").addEventListener("click", function() {
+      // 重置状态并返回游戏界面
+      currentRound = 0;
+      decisionLog = [];
+      metrics = { publicSatisfaction: 50, companyExpenditure: 0, companySocialResponsibility: 50, governmentSatisfaction: 50 };
+      document.getElementById("reportScreen").style.display = "none";
+      document.getElementById("gameScreen").style.display = "block";
+      displayScenario();
+    });
+  </script>
+</body>
+</html>
